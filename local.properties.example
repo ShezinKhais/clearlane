@@ -1,0 +1,11 @@
+# Copy to local.properties (which is git-ignored) and fill in.
+#
+# Android Studio writes sdk.dir itself on first open.
+#sdk.dir=C:\Users\You\AppData\Local\Android\Sdk
+
+# Routing and live traffic. Without this the app runs on the bundled
+# fixtures instead, which is enough to exercise the whole route comparison.
+CLEARLANE_MAPBOX_TOKEN=
+
+# Vector basemap style. Leave blank to fall back to the bundled raster style.
+CLEARLANE_MAP_STYLE_URL=

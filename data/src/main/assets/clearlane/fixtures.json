@@ -1,0 +1,188 @@
+{
+  "note": "Synthetic demo data. Geometry is drawn through approximate points on the real corridors rather than traced from the road network, so routes will not sit exactly on the basemap, and the congestion patterns are invented to be representative of a bad evening rather than measured from anything. Used so the app is fully usable with no API key, and so the tier logic can be exercised against conditions you cannot summon on demand from a live service. Congestion runs are [congestion, extent]; extents are rescaled to the real path length on load, so they can be written in metres or as fractions.",
+  "trips": [
+    {
+      "id": "marina-airport-evening",
+      "label": "Dubai Marina to the airport, evening peak",
+      "origin": { "lat": 25.0785, "lon": 55.1403 },
+      "destination": { "lat": 25.2528, "lon": 55.3644 },
+      "routes": [
+        {
+          "id": "e44",
+          "refs": ["E44", "D89"],
+          "speedLimitKph": 100,
+          "signals": 5,
+          "roundabouts": 0,
+          "via": [
+            { "lat": 25.08, "lon": 55.19 },
+            { "lat": 25.14, "lon": 55.25 },
+            { "lat": 25.2, "lon": 55.32 }
+          ],
+          "congestion": [
+            [0.15, 7770],
+            [0.52, 9330],
+            [0.4, 7770],
+            [0.18, 6220]
+          ]
+        },
+        {
+          "id": "e11",
+          "refs": ["E11", "D89"],
+          "speedLimitKph": 100,
+          "signals": 8,
+          "roundabouts": 0,
+          "via": [
+            { "lat": 25.13, "lon": 55.2 },
+            { "lat": 25.19, "lon": 55.26 },
+            { "lat": 25.23, "lon": 55.3 }
+          ],
+          "congestion": [
+            [0.3, 6050],
+            [0.72, 10590],
+            [0.62, 7560],
+            [0.35, 6050]
+          ]
+        },
+        {
+          "id": "e311",
+          "refs": ["E311", "E11"],
+          "speedLimitKph": 110,
+          "signals": 2,
+          "roundabouts": 0,
+          "via": [
+            { "lat": 25.02, "lon": 55.24 },
+            { "lat": 25.09, "lon": 55.33 },
+            { "lat": 25.18, "lon": 55.42 }
+          ],
+          "congestion": [
+            [0.1, 14200],
+            [0.28, 16500],
+            [0.14, 9450],
+            [0.22, 7090]
+          ]
+        },
+        {
+          "id": "e611",
+          "refs": ["E611", "E311"],
+          "speedLimitKph": 110,
+          "signals": 1,
+          "roundabouts": 0,
+          "via": [
+            { "lat": 25.01, "lon": 55.3 },
+            { "lat": 25.09, "lon": 55.39 },
+            { "lat": 25.19, "lon": 55.48 }
+          ],
+          "congestion": [
+            [0.03, 26280],
+            [0.06, 20440],
+            [0.1, 11680]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sharjah-business-bay-morning",
+      "label": "Sharjah to Business Bay, morning peak",
+      "origin": { "lat": 25.3463, "lon": 55.4209 },
+      "destination": { "lat": 25.1857, "lon": 55.2766 },
+      "routes": [
+        {
+          "id": "e311",
+          "refs": ["E311", "E44"],
+          "speedLimitKph": 110,
+          "signals": 3,
+          "roundabouts": 0,
+          "via": [
+            { "lat": 25.28, "lon": 55.45 },
+            { "lat": 25.2, "lon": 55.37 },
+            { "lat": 25.19, "lon": 55.3 }
+          ],
+          "congestion": [
+            [0.18, 7370],
+            [0.48, 8840],
+            [0.35, 7370],
+            [0.2, 5890]
+          ]
+        },
+        {
+          "id": "e11-ittihad",
+          "refs": ["E11", "E10"],
+          "speedLimitKph": 80,
+          "signals": 11,
+          "roundabouts": 1,
+          "via": [
+            { "lat": 25.31, "lon": 55.38 },
+            { "lat": 25.27, "lon": 55.33 },
+            { "lat": 25.22, "lon": 55.3 }
+          ],
+          "congestion": [
+            [0.4, 4660],
+            [0.7, 6980],
+            [0.58, 5820],
+            [0.35, 5820]
+          ]
+        },
+        {
+          "id": "e611",
+          "refs": ["E611", "E44"],
+          "speedLimitKph": 110,
+          "signals": 2,
+          "roundabouts": 0,
+          "via": [
+            { "lat": 25.26, "lon": 55.54 },
+            { "lat": 25.14, "lon": 55.42 },
+            { "lat": 25.16, "lon": 55.32 }
+          ],
+          "congestion": [
+            [0.04, 24440],
+            [0.08, 14660],
+            [0.12, 9770]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "abu-dhabi-dubai-midday",
+      "label": "Abu Dhabi to Dubai, the middle of the day",
+      "origin": { "lat": 24.4539, "lon": 54.3773 },
+      "destination": { "lat": 25.1972, "lon": 55.2744 },
+      "routes": [
+        {
+          "id": "e311-inland",
+          "refs": ["E311"],
+          "speedLimitKph": 120,
+          "signals": 0,
+          "roundabouts": 0,
+          "via": [
+            { "lat": 24.62, "lon": 54.7 },
+            { "lat": 24.88, "lon": 55.0 },
+            { "lat": 25.06, "lon": 55.24 }
+          ],
+          "congestion": [
+            [0.05, 63210],
+            [0.08, 37930],
+            [0.16, 25280]
+          ]
+        },
+        {
+          "id": "e11-coast",
+          "refs": ["E11"],
+          "speedLimitKph": 120,
+          "signals": 0,
+          "roundabouts": 0,
+          "via": [
+            { "lat": 24.64, "lon": 54.62 },
+            { "lat": 24.86, "lon": 54.89 },
+            { "lat": 25.03, "lon": 55.12 }
+          ],
+          "congestion": [
+            [0.1, 43000],
+            [0.22, 36870],
+            [0.48, 18430],
+            [0.3, 24580]
+          ]
+        }
+      ]
+    }
+  ]
+}

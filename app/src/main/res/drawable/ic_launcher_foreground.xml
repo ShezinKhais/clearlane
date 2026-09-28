@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Two lanes: one clear, one not. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#4ED17A"
+        android:pathData="M38,26 h8 v56 h-8 z" />
+    <path
+        android:fillColor="#E2574C"
+        android:pathData="M62,26 h8 v10 h-8 z M62,42 h8 v10 h-8 z M62,58 h8 v10 h-8 z M62,74 h8 v8 h-8 z" />
+</vector>
