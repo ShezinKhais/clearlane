@@ -7,5 +7,12 @@
 # fixtures instead, which is enough to exercise the whole route comparison.
 CLEARLANE_MAPBOX_TOKEN=
 
-# Vector basemap style. Leave blank to fall back to the bundled raster style.
+# Vector basemap style. Leave blank to fall back to the bundled dark style,
+# which draws land and borders but no streets.
 CLEARLANE_MAP_STYLE_URL=
+
+# Look up speed cameras live from Overpass for places outside the UAE, which
+# is covered by a bundled extract. Set to true only for your own development:
+# Overpass is donated hardware and its usage policy does not cover backing an
+# app's traffic. Shipping this on would be an abuse of it.
+CLEARLANE_LIVE_CAMERA_LOOKUP=false

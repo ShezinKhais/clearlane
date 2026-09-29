@@ -3,6 +3,7 @@ package ae.clearlane.app.ui
 import ae.clearlane.app.RouteUiState
 import ae.clearlane.app.RouteViewModel
 import ae.clearlane.app.map.RouteMap
+import ae.clearlane.app.ui.drive.PillButton
 import ae.clearlane.core.model.DriveFactor
 import ae.clearlane.core.model.RoutePlan
 import ae.clearlane.core.model.ScoredRoute
@@ -14,6 +15,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -23,8 +25,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -36,13 +39,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/**
+ * The planning screen: every route the app found, side by side, with what each
+ * one costs.
+ *
+ * The map keeps the upper half and the comparison sits under it, because the
+ * argument the app is making is a visual one. Four lines fanning inland with
+ * three of them green says more than any of the numbers below it, and the
+ * numbers are there to confirm what the picture already showed.
+ */
 @Composable
 fun RouteScreen(state: RouteUiState, model: RouteViewModel) {
     Column(
@@ -77,19 +88,23 @@ fun RouteScreen(state: RouteUiState, model: RouteViewModel) {
 
 @Composable
 private fun Header(state: RouteUiState, model: RouteViewModel) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 14.dp, bottom = 8.dp)) {
-        Text("Clearlane", color = Palette.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-        Text(
-            text = buildString {
-                append(state.outcome?.providerName ?: model.providerName)
-                if (state.outcome?.isDemoData == true) append(" · demo data, no live traffic")
-            },
-            color = Palette.textDim,
-            fontSize = 11.sp,
-        )
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 12.dp, bottom = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Clearlane", color = Palette.text, style = Type.title)
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = buildString {
+                    append(state.outcome?.providerName ?: model.providerName)
+                    if (state.outcome?.isDemoData == true) append(" · demo data")
+                },
+                color = Palette.textDim,
+                style = Type.caption,
+            )
+        }
+
         state.outcome?.timeAdvice?.let {
             Spacer(Modifier.height(6.dp))
-            Text(it, color = Palette.accent, fontSize = 12.sp)
+            Text(it, color = Palette.accent, style = Type.caption)
         }
 
         if (state.trips.isNotEmpty()) {
@@ -107,17 +122,22 @@ private fun Header(state: RouteUiState, model: RouteViewModel) {
                 }
             }
         }
-        Text(
-            "Tap the map to move the destination, hold to move the start.",
-            color = Palette.textDim,
-            fontSize = 10.sp,
-            modifier = Modifier.padding(top = 8.dp),
-        )
     }
 }
 
 @Composable
 private fun Sheet(state: RouteUiState, model: RouteViewModel) {
+    Column(Modifier.fillMaxWidth().background(Palette.surface)) {
+        SheetContent(state, model)
+        // Pinned under the scrolling list rather than at the end of it. It is
+        // the one thing on this screen the driver is heading for, and having to
+        // scroll four cards to find it would be a poor joke in a car.
+        DriveActions(state, model)
+    }
+}
+
+@Composable
+private fun ColumnScope.SheetContent(state: RouteUiState, model: RouteViewModel) {
     val plan = state.outcome?.plan
     Column(
         Modifier
@@ -125,23 +145,22 @@ private fun Sheet(state: RouteUiState, model: RouteViewModel) {
             // Capped so the map keeps a usable share of the screen. Without
             // this the sheet grows to fit its content and squeezes the map
             // down to a strip, which rather defeats a maps app.
-            .heightIn(max = 340.dp)
-            .background(Palette.surface)
+            .heightIn(max = 320.dp)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         state.error?.let {
-            Text(it, color = Palette.severe, fontSize = 13.sp)
+            Text(it, color = Palette.severe, style = Type.body)
             Spacer(Modifier.height(10.dp))
         }
         if (plan == null) {
-            Text("Pick a trip to compare routes.", color = Palette.textDim, fontSize = 13.sp)
+            Text("Pick a trip to compare routes.", color = Palette.textDim, style = Type.body)
             return@Column
         }
 
         FastestCard(plan, selected = state.selected == null, onClick = { model.select(null) })
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(14.dp))
         Text(
             text = if (plan.fastestIsCalmest) {
                 "Nothing calmer to find right now, so the quick way is the good way."
@@ -149,8 +168,7 @@ private fun Sheet(state: RouteUiState, model: RouteViewModel) {
                 "Calmer ways home"
             },
             color = Palette.textDim,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
+            style = Type.bodyStrong,
         )
         Spacer(Modifier.height(8.dp))
 
@@ -167,51 +185,89 @@ private fun Sheet(state: RouteUiState, model: RouteViewModel) {
             Spacer(Modifier.height(8.dp))
         }
 
+        Spacer(Modifier.height(6.dp))
         for (note in plan.notes) {
-            Text("· $note", color = Palette.textDim, fontSize = 11.sp)
+            Text("· $note", color = Palette.textDim, style = Type.caption)
         }
         for (warning in state.outcome.warnings) {
-            Text("· $warning", color = Palette.textDim, fontSize = 11.sp)
+            Text("· $warning", color = Palette.textDim, style = Type.caption)
+        }
+        state.hazardAttribution?.let {
+            Text("· $it", color = Palette.textDim, style = Type.caption)
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(14.dp))
         Preferences(state, model)
+    }
+}
+
+/**
+ * Starting the drive.
+ *
+ * Two buttons rather than one, because without a car the driving screen cannot
+ * otherwise be seen at all. The simulated option is labelled here and again on
+ * the screen itself the whole time it is running.
+ */
+@Composable
+private fun DriveActions(state: RouteUiState, model: RouteViewModel) {
+    val route = state.highlighted ?: return
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(Palette.surfaceHigh)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PillButton(
+                label = "Drive this route",
+                colour = Palette.accent,
+                onClick = { model.startDrive(simulate = false) },
+                modifier = Modifier.weight(1f),
+            )
+            PillButton(
+                label = "Simulate",
+                colour = Palette.surface,
+                onClick = { model.startDrive(simulate = true) },
+                labelColour = Palette.text,
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "Following ${route.candidate.viaLabel()}, ${minutes(route.durationSeconds)} min.",
+            color = Palette.textDim,
+            style = Type.caption,
+        )
     }
 }
 
 @Composable
 private fun FastestCard(plan: RoutePlan, selected: Boolean, onClick: () -> Unit) {
     val route = plan.fastest
-    Card(selected = selected, onClick = onClick) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Card(
+        selected = selected,
+        accent = Palette.forCongestion(route.congestion.timeWeighted),
+        onClick = onClick,
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
+                Text("Quickest route", color = Palette.textDim, style = Type.caption)
+                Spacer(Modifier.height(2.dp))
+                Text("${minutes(route.durationSeconds)} min", color = Palette.text, style = Type.figure)
                 Text(
-                    "Quickest route",
+                    "${km(route.meters)} km · ${route.candidate.viaLabel()}",
                     color = Palette.textDim,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium,
+                    style = Type.caption,
                 )
-                Text(
-                    "${minutes(route.durationSeconds)} min · ${km(route.meters)} km",
-                    color = Palette.text,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(route.candidate.viaLabel(), color = Palette.textDim, fontSize = 11.sp)
             }
-            Column(horizontalAlignment = Alignment.End) {
-                CongestionBadge(route)
-                Spacer(Modifier.height(4.dp))
-                ScoreBadge(route)
-            }
+            Readings(route)
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         CongestionStrip(route.candidate)
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(8.dp))
         Text(
             text = "What another maps app would give you. " + weakness(route),
             color = Palette.textDim,
-            fontSize = 11.sp,
+            style = Type.caption,
         )
     }
 }
@@ -226,94 +282,100 @@ private fun TierCard(
     onClick: () -> Unit,
 ) {
     val isSameRoad = route.id == fastest.id
-    Card(selected = selected, onClick = onClick) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .width(4.dp)
-                    .height(38.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Palette.forTier(tier)),
-            )
-            Spacer(Modifier.width(10.dp))
+    Card(selected = selected, accent = Palette.forTier(tier), onClick = onClick) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "${tier.label} traffic",
-                        color = Palette.text,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Text("${tier.label} traffic", color = Palette.text, style = Type.bodyStrong)
                     if (recommended) {
                         Spacer(Modifier.width(6.dp))
-                        Tag("pick", Palette.accent)
+                        Tag("our pick", Palette.accent)
                     }
                     if (route.overBudget) {
                         Spacer(Modifier.width(6.dp))
                         Tag("over budget", Palette.heavy)
                     }
                 }
-                Text(
-                    text = buildString {
-                        append("${minutes(route.durationSeconds)} min")
-                        append(" · ")
-                        append(delta(route.extraSeconds))
-                        append(" · ")
-                        append("${km(route.meters)} km")
-                    },
-                    color = Palette.text,
-                    fontSize = 12.sp,
-                )
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        "${minutes(route.durationSeconds)} min",
+                        color = Palette.text,
+                        style = Type.figure,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = delta(route.extraSeconds),
+                        color = if (route.extraSeconds > 0) Palette.textDim else Palette.clear,
+                        style = Type.caption,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                }
                 Text(
                     text = if (isSameRoad) {
                         "The quickest route, and calm enough to count."
                     } else {
-                        route.candidate.viaLabel()
+                        "${km(route.meters)} km · ${route.candidate.viaLabel()}"
                     },
                     color = Palette.textDim,
-                    fontSize = 11.sp,
+                    style = Type.caption,
                 )
             }
-            Column(horizontalAlignment = Alignment.End) {
-                CongestionBadge(route)
-                Spacer(Modifier.height(4.dp))
-                ScoreBadge(route)
-            }
+            Readings(route)
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         CongestionStrip(route.candidate)
         if (route.candidate.tollFils > 0) {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 "AED ${"%.0f".format(route.candidate.tollFils / 100.0)} of tolls",
                 color = Palette.textDim,
-                fontSize = 11.sp,
+                style = Type.caption,
             )
         }
     }
 }
 
+/**
+ * The two figures every route carries, in the same place on every card.
+ *
+ * Right aligned and always in this order, so comparing four routes is reading
+ * down a column rather than hunting for the number on each one.
+ */
 @Composable
-private fun CongestionBadge(route: ScoredRoute) {
-    val percent = (route.congestion.timeWeighted * 100).roundToInt()
-    Tag("$percent% congested", Palette.forCongestion(route.congestion.timeWeighted))
+private fun Readings(route: ScoredRoute) {
+    val congestion = (route.congestion.timeWeighted * 100).roundToInt()
+    Column(horizontalAlignment = Alignment.End) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(7.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Palette.forCongestion(route.congestion.timeWeighted)),
+            )
+            Spacer(Modifier.width(5.dp))
+            Text("$congestion%", color = Palette.text, style = Type.bodyStrong)
+        }
+        Text("congested", color = Palette.textDim, style = Type.caption)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = route.score.total.toString(),
+            color = Palette.forScore(route.score.total),
+            style = Type.bodyStrong,
+        )
+        Text("drive", color = Palette.textDim, style = Type.caption)
+    }
 }
 
 @Composable
-private fun ScoreBadge(route: ScoredRoute) {
-    Tag("drive ${route.score.total}", Palette.forScore(route.score.total))
-}
-
-@Composable
-private fun Tag(text: String, color: androidx.compose.ui.graphics.Color) {
+private fun Tag(text: String, color: Color) {
     Text(
         text = text,
         color = color,
-        fontSize = 10.sp,
-        fontWeight = FontWeight.Medium,
+        style = Type.caption,
         modifier = Modifier
-            .border(1.dp, color.copy(alpha = 0.45f), RoundedCornerShape(3.dp))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .border(1.dp, color.copy(alpha = 0.45f), RoundedCornerShape(7.dp))
+            .padding(horizontal = 6.dp, vertical = 1.dp),
     )
 }
 
@@ -322,45 +384,64 @@ private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     Text(
         text = label,
         color = if (selected) Palette.background else Palette.text,
-        fontSize = 11.sp,
+        style = Type.caption,
         textAlign = TextAlign.Center,
         modifier = Modifier
-            .clip(RoundedCornerShape(3.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(if (selected) Palette.accent else Palette.surfaceHigh)
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 11.dp, vertical = 7.dp),
     )
 }
 
+/**
+ * A route card.
+ *
+ * The congestion colour is carried on a bar down the leading edge rather than in
+ * the border, so the cards read as a column of coloured tabs before any of the
+ * text on them has been looked at. Selection is the border and the lighter fill,
+ * which keeps two different signals doing two different jobs.
+ */
 @Composable
-private fun Card(selected: Boolean, onClick: () -> Unit, content: @Composable () -> Unit) {
-    Column(
+private fun Card(
+    selected: Boolean,
+    accent: Color,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Row(
         Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (selected) Palette.surfaceHigh else Palette.panel)
             .border(
-                width = 1.dp,
+                width = if (selected) 1.5.dp else 1.dp,
                 color = if (selected) Palette.accent else Palette.line,
-                shape = RoundedCornerShape(4.dp),
+                shape = RoundedCornerShape(16.dp),
             )
-            .clip(RoundedCornerShape(4.dp))
-            .background(Palette.surfaceHigh)
-            .clickable(onClick = onClick)
-            .padding(12.dp),
+            .clickable(onClick = onClick),
     ) {
-        content()
+        Box(
+            Modifier
+                .width(4.dp)
+                .heightIn(min = 60.dp)
+                .background(accent),
+        )
+        Column(
+            Modifier
+                .weight(1f)
+                .padding(start = 12.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
+        ) {
+            content()
+        }
     }
 }
 
 @Composable
 private fun Preferences(state: RouteUiState, model: RouteViewModel) {
     Column {
-        Text(
-            "How much longer will you accept",
-            color = Palette.textDim,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-        )
-        Spacer(Modifier.height(6.dp))
+        Text("How much longer will you accept", color = Palette.textDim, style = Type.bodyStrong)
+        Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (option in listOf(5, 10, 20, 40)) {
                 Chip(
@@ -370,9 +451,9 @@ private fun Preferences(state: RouteUiState, model: RouteViewModel) {
                 )
             }
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Keep off the tolls", color = Palette.textDim, fontSize = 11.sp)
+            Text("Keep off the tolls", color = Palette.textDim, style = Type.body)
             Spacer(Modifier.weight(1f))
             Switch(
                 checked = state.preferences.avoidTolls,

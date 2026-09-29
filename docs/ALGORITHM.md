@@ -3,6 +3,9 @@
 Everything here lives in `:core`, which is plain Kotlin with no Android and no
 network in it, so all of it can be tested directly.
 
+Once a route is chosen and the car starts moving, the maths moves to
+[NAVIGATION.md](NAVIGATION.md).
+
 ## 1. Congestion, per segment
 
 Every provider reports traffic on its own scale. The adapters normalise to one:

@@ -32,6 +32,23 @@ object Palette {
     val heavy = Color(0xFFE2773C)
     val severe = Color(0xFFD2453C)
 
+    /**
+     * The driving screen floats panels over a moving map, so it needs a surface
+     * that is legible above anything the basemap does. Darker and more opaque
+     * than [surface], which only ever sits on a still background.
+     */
+    val panel = Color(0xFF12161C)
+    val panelEdge = Color(0xFF39424F)
+
+    /**
+     * A speed limit sign is a picture of a real object, not a reading off the
+     * congestion scale, so it gets its own red. Reusing [severe] here would say
+     * "this road is jammed" to anyone glancing at the colour.
+     */
+    val signRed = Color(0xFFE01F26)
+    val signFace = Color(0xFFF4F6F9)
+    val signInk = Color(0xFF11141A)
+
     /** Colour for one segment's congestion. */
     fun forCongestion(value: Double): Color = when {
         value < CongestionProfile.CLEAR -> clear

@@ -31,15 +31,22 @@ fun CongestionStrip(
     route: RouteCandidate,
     modifier: Modifier = Modifier,
     height: Dp = 22.dp,
+    /**
+     * Where the car is along the route, 0 to 1, or null when planning rather
+     * than driving. While driving, the part already covered is dimmed and the
+     * position marked, which turns the chart from a description of the route
+     * into a picture of what is left of it.
+     */
+    progress: Float? = null,
 ) {
     Box(modifier.fillMaxWidth().height(height)) {
         Canvas(Modifier.fillMaxWidth().height(height)) {
-            drawStrip(route)
+            drawStrip(route, progress)
         }
     }
 }
 
-private fun DrawScope.drawStrip(route: RouteCandidate) {
+private fun DrawScope.drawStrip(route: RouteCandidate, progress: Float?) {
     val total = route.segments.sumOf { it.meters }
     if (total <= 0.0) return
 
@@ -69,4 +76,22 @@ private fun DrawScope.drawStrip(route: RouteCandidate) {
         )
         x += width
     }
+
+    val at = progress?.coerceIn(0f, 1f) ?: return
+
+    // Behind the car: still readable, but plainly the past.
+    drawRect(
+        color = Palette.background.copy(alpha = 0.62f),
+        topLeft = Offset(0f, 0f),
+        size = Size(w * at, h),
+    )
+
+    // The car itself. Full height so it is found instantly, and drawn last so
+    // nothing covers it.
+    val marker = w * at
+    drawRect(
+        color = Palette.text,
+        topLeft = Offset((marker - 1.2f).coerceIn(0f, w - 2.4f), 0f),
+        size = Size(2.4f, h),
+    )
 }

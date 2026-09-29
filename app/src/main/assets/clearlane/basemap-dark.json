@@ -1,0 +1,41 @@
+{
+  "version": 8,
+  "name": "Clearlane dark",
+  "metadata": {
+    "clearlane:note": "The fallback basemap, used when no style URL is configured. It draws the same MapLibre demo tiles as the default demo style, in this app's own palette instead of the bright cartographic one, so a dark app does not open onto a yellow map. Land and borders only: there are no streets in this source. Point CLEARLANE_MAP_STYLE_URL at a real style for those."
+  },
+  "sources": {
+    "demotiles": {
+      "type": "vector",
+      "url": "https://demotiles.maplibre.org/tiles/tiles.json"
+    }
+  },
+  "layers": [
+    {
+      "id": "sea",
+      "type": "background",
+      "paint": {
+        "background-color": "#0A0D12"
+      }
+    },
+    {
+      "id": "land",
+      "type": "fill",
+      "source": "demotiles",
+      "source-layer": "countries",
+      "paint": {
+        "fill-color": "#161A21"
+      }
+    },
+    {
+      "id": "coastline",
+      "type": "line",
+      "source": "demotiles",
+      "source-layer": "countries",
+      "paint": {
+        "line-color": "#2A313C",
+        "line-width": 1.0
+      }
+    }
+  ]
+}

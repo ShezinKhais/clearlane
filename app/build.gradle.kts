@@ -33,6 +33,16 @@ android {
 
         buildConfigField("String", "MAPBOX_TOKEN", "\"${secret("CLEARLANE_MAPBOX_TOKEN")}\"")
         buildConfigField("String", "MAP_STYLE_URL", "\"${secret("CLEARLANE_MAP_STYLE_URL")}\"")
+
+        // Off unless a developer asks for it. Camera positions for the UAE are
+        // bundled; turning this on queries Overpass live for anywhere else,
+        // which is fine for filling in another country and not fine to ship,
+        // because Overpass is donated hardware and its usage policy says so.
+        buildConfigField(
+            "boolean",
+            "LIVE_CAMERA_LOOKUP",
+            secret("CLEARLANE_LIVE_CAMERA_LOOKUP").ifBlank { "false" },
+        )
     }
 
     buildTypes {

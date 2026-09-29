@@ -123,3 +123,38 @@ fun circumRadius(a: LatLng, b: LatLng, c: LatLng): Double {
     if (la < 1e-6 || lb < 1e-6 || lc < 1e-6) return Double.MAX_VALUE
     return (la * lb * lc) / (2.0 * abs(cross))
 }
+
+/** Where a point falls on a segment, and how far off it is. */
+data class Projection(
+    /** The point on the segment closest to the one asked about. */
+    val at: LatLng,
+    /** How far along the segment, 0 at the start and 1 at the end. */
+    val fraction: Double,
+    /** Perpendicular distance from the original point, in metres. */
+    val offMeters: Double,
+)
+
+/**
+ * Closest point on the segment [a]..[b] to [this], clamped to the ends.
+ *
+ * Used to put a moving car on a route: a GPS fix is never exactly on the line,
+ * and the difference between "12 m off" and "400 m off" is the difference
+ * between normal drift and having left the route.
+ *
+ * Flat maths in a local metric frame. Over a segment a few hundred metres long
+ * the error is far below GPS noise, and the alternative costs trigonometry on
+ * every fix.
+ */
+fun LatLng.projectOnto(a: LatLng, b: LatLng): Projection {
+    val mx = EARTH_RADIUS_M * cos(a.lat * DEG) * DEG
+    val my = EARTH_RADIUS_M * DEG
+    val abx = (b.lon - a.lon) * mx
+    val aby = (b.lat - a.lat) * my
+    val apx = (lon - a.lon) * mx
+    val apy = (lat - a.lat) * my
+
+    val lenSq = abx * abx + aby * aby
+    val t = if (lenSq < 1e-9) 0.0 else ((apx * abx + apy * aby) / lenSq).coerceIn(0.0, 1.0)
+    val at = LatLng(a.lat + (b.lat - a.lat) * t, a.lon + (b.lon - a.lon) * t)
+    return Projection(at = at, fraction = t, offMeters = distanceTo(at))
+}
