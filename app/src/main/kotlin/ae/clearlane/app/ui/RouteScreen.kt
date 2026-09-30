@@ -36,12 +36,18 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -53,6 +59,11 @@ import kotlin.math.roundToInt
  * argument the app is making is a visual one. Four lines fanning inland with
  * three of them green says more than any of the numbers below it, and the
  * numbers are there to confirm what the picture already showed.
+ *
+ * The comparison is built to be read down rather than across. Every route puts
+ * its three figures at the same three positions and draws its strip against one
+ * shared distance axis, so choosing between four routes is scanning a column
+ * instead of re-finding the numbers on each card.
  */
 @Composable
 fun RouteScreen(state: RouteUiState, model: RouteViewModel) {
@@ -73,11 +84,17 @@ fun RouteScreen(state: RouteUiState, model: RouteViewModel) {
                 modifier = Modifier.fillMaxSize(),
             )
             if (state.loading) {
-                Box(
+                // Says which of the two waits this is. A bare spinner over a
+                // map leaves the driver unable to tell a first plan from a
+                // traffic recheck, and they are worth waiting for differently.
+                Column(
                     Modifier.fillMaxSize().background(Palette.background.copy(alpha = 0.45f)),
-                    contentAlignment = Alignment.Center,
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     CircularProgressIndicator(color = Palette.accent)
+                    Spacer(Modifier.height(10.dp))
+                    Text("Comparing routes", color = Palette.text, style = Type.bodyStrong)
                 }
             }
         }
@@ -92,14 +109,17 @@ private fun Header(state: RouteUiState, model: RouteViewModel) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Clearlane", color = Palette.text, style = Type.title)
             Spacer(Modifier.weight(1f))
-            Text(
-                text = buildString {
-                    append(state.outcome?.providerName ?: model.providerName)
-                    if (state.outcome?.isDemoData == true) append(" · demo data")
-                },
-                color = Palette.textDim,
-                style = Type.caption,
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = buildString {
+                        append(state.outcome?.providerName ?: model.providerName)
+                        if (state.outcome?.isDemoData == true) append(" · demo data")
+                    },
+                    color = Palette.textDim,
+                    style = Type.caption,
+                )
+                Freshness(state)
+            }
         }
 
         state.outcome?.timeAdvice?.let {
@@ -122,7 +142,57 @@ private fun Header(state: RouteUiState, model: RouteViewModel) {
                 }
             }
         }
+
+        // The map's two gestures are otherwise undiscoverable: nothing on
+        // screen suggests a tap sets a destination or that holding moves the
+        // start, so without this line the pickers might as well not exist.
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = if (state.activeTripId != null) {
+                "Tap the map for a different destination, hold to move the start."
+            } else {
+                "Your own start and destination. Tap the map to change where you are going."
+            },
+            color = Palette.textDim,
+            style = Type.caption,
+        )
     }
+}
+
+/**
+ * How old the traffic on screen is.
+ *
+ * Nothing pushes traffic to a phone, so what is being compared is always a
+ * reading taken at some point in the past. Saying when turns a stale plan from
+ * something that misleads into something the driver can decide about, and the
+ * app already records the time; it simply never showed it.
+ */
+@Composable
+private fun Freshness(state: RouteUiState) {
+    if (state.refreshing) {
+        Text("checking traffic", color = Palette.accent, style = Type.caption)
+        return
+    }
+    val at = state.plannedAtMillis ?: return
+
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(at) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(FRESHNESS_TICK_MS)
+        }
+    }
+
+    val minutes = ((now - at) / 60_000L).toInt()
+    Text(
+        text = when {
+            minutes <= 0 -> "traffic just now"
+            minutes == 1 -> "traffic 1 min old"
+            else -> "traffic $minutes min old"
+        },
+        color = if (minutes >= STALE_MINUTES) Palette.light else Palette.textDim,
+        style = Type.caption,
+    )
 }
 
 @Composable
@@ -145,20 +215,50 @@ private fun ColumnScope.SheetContent(state: RouteUiState, model: RouteViewModel)
             // Capped so the map keeps a usable share of the screen. Without
             // this the sheet grows to fit its content and squeezes the map
             // down to a strip, which rather defeats a maps app.
-            .heightIn(max = 320.dp)
+            .heightIn(max = 340.dp)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         state.error?.let {
-            Text(it, color = Palette.severe, style = Type.body)
-            Spacer(Modifier.height(10.dp))
+            Text("Could not plan this", color = Palette.severe, style = Type.bodyStrong)
+            Spacer(Modifier.height(2.dp))
+            Text(it, color = Palette.textDim, style = Type.body)
+            Spacer(Modifier.height(12.dp))
         }
         if (plan == null) {
-            Text("Pick a trip to compare routes.", color = Palette.textDim, style = Type.body)
+            if (state.error == null) {
+                Text("Nothing to compare yet", color = Palette.text, style = Type.bodyStrong)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "Pick a trip above, or tap the map to set where you are going.",
+                    color = Palette.textDim,
+                    style = Type.body,
+                )
+            }
             return@Column
         }
 
-        FastestCard(plan, selected = state.selected == null, onClick = { model.select(null) })
+        // One scale for every strip on the screen, taken from the longest route
+        // the plan considered rather than from the ones it chose to show, so
+        // switching the tier filter does not silently rescale the picture.
+        val scaleMeters = plan.considered.maxOfOrNull { it.meters } ?: plan.fastest.meters
+
+        // Inset to exactly where the strips inside the cards begin and end: the
+        // 4 dp colour bar plus the card's own padding. An axis a few pixels
+        // wider than the thing it measures is worse than no axis, because it
+        // reads as a route falling short of a distance it actually covers.
+        DistanceAxis(
+            maxMeters = scaleMeters,
+            modifier = Modifier.padding(start = CARD_CONTENT_START, end = CARD_CONTENT_END),
+        )
+        Spacer(Modifier.height(10.dp))
+
+        FastestCard(
+            plan = plan,
+            scaleMeters = scaleMeters,
+            selected = state.selected == null,
+            onClick = { model.select(null) },
+        )
 
         Spacer(Modifier.height(14.dp))
         Text(
@@ -178,6 +278,7 @@ private fun ColumnScope.SheetContent(state: RouteUiState, model: RouteViewModel)
                 tier = tier,
                 route = route,
                 fastest = plan.fastest,
+                scaleMeters = scaleMeters,
                 recommended = tier == plan.recommended,
                 selected = state.selected == tier,
                 onClick = { model.select(tier) },
@@ -185,19 +286,30 @@ private fun ColumnScope.SheetContent(state: RouteUiState, model: RouteViewModel)
             Spacer(Modifier.height(8.dp))
         }
 
-        Spacer(Modifier.height(6.dp))
-        for (note in plan.notes) {
-            Text("· $note", color = Palette.textDim, style = Type.caption)
-        }
-        for (warning in state.outcome.warnings) {
-            Text("· $warning", color = Palette.textDim, style = Type.caption)
-        }
-        state.hazardAttribution?.let {
-            Text("· $it", color = Palette.textDim, style = Type.caption)
-        }
+        Notes(plan.notes + state.outcome.warnings + listOfNotNull(state.hazardAttribution))
 
         Spacer(Modifier.height(14.dp))
         Preferences(state, model)
+    }
+}
+
+/**
+ * Whatever the plan wants to say for itself: assumptions it made, sources it
+ * used, things it could not do.
+ *
+ * Set below a rule rather than prefixed with a bullet character. These are
+ * footnotes to the comparison, and a rule says that; a dot pretending to be a
+ * list marker only adds noise to the start of every line.
+ */
+@Composable
+private fun Notes(lines: List<String>) {
+    if (lines.isEmpty()) return
+    Spacer(Modifier.height(12.dp))
+    Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.line))
+    Spacer(Modifier.height(8.dp))
+    for (line in lines) {
+        Text(line, color = Palette.textDim, style = Type.caption)
+        Spacer(Modifier.height(4.dp))
     }
 }
 
@@ -241,34 +353,37 @@ private fun DriveActions(state: RouteUiState, model: RouteViewModel) {
 }
 
 @Composable
-private fun FastestCard(plan: RoutePlan, selected: Boolean, onClick: () -> Unit) {
+private fun FastestCard(
+    plan: RoutePlan,
+    scaleMeters: Double,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
     val route = plan.fastest
     Card(
         selected = selected,
         accent = Palette.forCongestion(route.congestion.timeWeighted),
         onClick = onClick,
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f)) {
-                Text("Quickest route", color = Palette.textDim, style = Type.caption)
-                Spacer(Modifier.height(2.dp))
-                Text("${minutes(route.durationSeconds)} min", color = Palette.text, style = Type.figure)
-                Text(
-                    "${km(route.meters)} km · ${route.candidate.viaLabel()}",
-                    color = Palette.textDim,
-                    style = Type.caption,
-                )
-            }
-            Readings(route)
-        }
-        Spacer(Modifier.height(10.dp))
-        CongestionStrip(route.candidate)
-        Spacer(Modifier.height(8.dp))
+        Text("Quickest route", color = Palette.text, style = Type.bodyStrong)
+        Spacer(Modifier.height(1.dp))
         Text(
-            text = "What another maps app would give you. " + weakness(route),
+            "${km(route.meters)} km · ${route.candidate.viaLabel()}",
             color = Palette.textDim,
             style = Type.caption,
         )
+        Spacer(Modifier.height(8.dp))
+        Readings(route)
+        Spacer(Modifier.height(10.dp))
+        CongestionStrip(route.candidate, scaleMeters = scaleMeters)
+        if (selected) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "What another maps app would give you. " + weakness(route),
+                color = Palette.textDim,
+                style = Type.caption,
+            )
+        }
     }
 }
 
@@ -277,55 +392,42 @@ private fun TierCard(
     tier: TrafficTier,
     route: ScoredRoute,
     fastest: ScoredRoute,
+    scaleMeters: Double,
     recommended: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
     val isSameRoad = route.id == fastest.id
     Card(selected = selected, accent = Palette.forTier(tier), onClick = onClick) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${tier.label} traffic", color = Palette.text, style = Type.bodyStrong)
-                    if (recommended) {
-                        Spacer(Modifier.width(6.dp))
-                        Tag("our pick", Palette.accent)
-                    }
-                    if (route.overBudget) {
-                        Spacer(Modifier.width(6.dp))
-                        Tag("over budget", Palette.heavy)
-                    }
-                }
-                Spacer(Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        "${minutes(route.durationSeconds)} min",
-                        color = Palette.text,
-                        style = Type.figure,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = delta(route.extraSeconds),
-                        color = if (route.extraSeconds > 0) Palette.textDim else Palette.clear,
-                        style = Type.caption,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                    )
-                }
-                Text(
-                    text = if (isSameRoad) {
-                        "The quickest route, and calm enough to count."
-                    } else {
-                        "${km(route.meters)} km · ${route.candidate.viaLabel()}"
-                    },
-                    color = Palette.textDim,
-                    style = Type.caption,
-                )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(tierWords(tier), color = Palette.text, style = Type.bodyStrong)
+            if (recommended) {
+                Spacer(Modifier.width(6.dp))
+                // A recommendation is filled and a breach is outlined, because
+                // they are opposite kinds of news. Given the same treatment,
+                // as they were, a driver has to read both to tell them apart.
+                Tag("our pick", Palette.accent, filled = true)
             }
-            Readings(route)
+            if (route.overBudget) {
+                Spacer(Modifier.width(6.dp))
+                Tag("over budget", Palette.heavy)
+            }
         }
+        Spacer(Modifier.height(1.dp))
+        Text(
+            text = if (isSameRoad) {
+                "The quickest route, and calm enough to count."
+            } else {
+                "${km(route.meters)} km · ${route.candidate.viaLabel()}"
+            },
+            color = Palette.textDim,
+            style = Type.caption,
+        )
+        Spacer(Modifier.height(8.dp))
+        Readings(route, extraSeconds = route.extraSeconds)
         Spacer(Modifier.height(10.dp))
-        CongestionStrip(route.candidate)
-        if (route.candidate.tollFils > 0) {
+        CongestionStrip(route.candidate, scaleMeters = scaleMeters)
+        if (selected && route.candidate.tollFils > 0) {
             Spacer(Modifier.height(8.dp))
             Text(
                 "AED ${"%.0f".format(route.candidate.tollFils / 100.0)} of tolls",
@@ -337,44 +439,87 @@ private fun TierCard(
 }
 
 /**
- * The two figures every route carries, in the same place on every card.
+ * The three figures every route carries, at the same three positions on every
+ * card.
  *
- * Right aligned and always in this order, so comparing four routes is reading
- * down a column rather than hunting for the number on each one.
+ * Minutes and congestion are set at the same size on purpose. The whole premise
+ * of the app is that those two are a trade against each other, and the earlier
+ * layout gave minutes two and a half times the type size of congestion, which
+ * argued the opposite of what the app is for.
+ *
+ * Fixed column widths rather than spacing, so the values line up down the list
+ * whatever their number of digits. Comparing four routes should be reading a
+ * column, not hunting each card for where its congestion figure ended up.
  */
 @Composable
-private fun Readings(route: ScoredRoute) {
+private fun Readings(route: ScoredRoute, extraSeconds: Double? = null) {
     val congestion = (route.congestion.timeWeighted * 100).roundToInt()
-    Column(horizontalAlignment = Alignment.End) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(7.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Palette.forCongestion(route.congestion.timeWeighted)),
-            )
-            Spacer(Modifier.width(5.dp))
-            Text("$congestion%", color = Palette.text, style = Type.bodyStrong)
-        }
-        Text("congested", color = Palette.textDim, style = Type.caption)
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = route.score.total.toString(),
-            color = Palette.forScore(route.score.total),
-            style = Type.bodyStrong,
+    Row(verticalAlignment = Alignment.Bottom) {
+        Cell(
+            value = "${minutes(route.durationSeconds)}",
+            label = "min",
+            colour = Palette.text,
         )
-        Text("drive", color = Palette.textDim, style = Type.caption)
+        Cell(
+            value = "$congestion%",
+            label = "congested",
+            colour = Palette.forCongestion(route.congestion.timeWeighted),
+            // The congestion colour also appears as the bar down the card edge
+            // and as height in the strip, so the figure itself carries the
+            // number and the dot only confirms which band it fell in.
+            dot = true,
+        )
+        Cell(
+            value = route.score.total.toString(),
+            label = "drive",
+            colour = Palette.forScore(route.score.total),
+        )
+        if (extraSeconds != null) {
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = delta(extraSeconds),
+                color = if (extraSeconds > 0) Palette.textDim else Palette.clear,
+                style = Type.caption,
+                modifier = Modifier.padding(bottom = 3.dp),
+            )
+        }
+    }
+}
+
+/** One figure and what it measures, in a fixed column. */
+@Composable
+private fun Cell(value: String, label: String, colour: Color, dot: Boolean = false) {
+    Column(Modifier.width(CELL_WIDTH)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (dot) {
+                Box(
+                    Modifier
+                        .size(7.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(colour),
+                )
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(value, color = colour, style = Type.callout)
+        }
+        Text(label, color = Palette.textDim, style = Type.caption)
     }
 }
 
 @Composable
-private fun Tag(text: String, color: Color) {
+private fun Tag(text: String, color: Color, filled: Boolean = false) {
     Text(
         text = text,
-        color = color,
+        color = if (filled) Palette.background else color,
         style = Type.caption,
         modifier = Modifier
-            .border(1.dp, color.copy(alpha = 0.45f), RoundedCornerShape(7.dp))
+            .clip(RoundedCornerShape(7.dp))
+            .background(if (filled) color else Color.Transparent)
+            .border(
+                width = 1.dp,
+                color = if (filled) Color.Transparent else color.copy(alpha = 0.45f),
+                shape = RoundedCornerShape(7.dp),
+            )
             .padding(horizontal = 6.dp, vertical = 1.dp),
     )
 }
@@ -401,13 +546,17 @@ private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
  * the border, so the cards read as a column of coloured tabs before any of the
  * text on them has been looked at. Selection is the border and the lighter fill,
  * which keeps two different signals doing two different jobs.
+ *
+ * Only the selected card carries its prose. Four routes each explaining
+ * themselves at once is four paragraphs nobody reads and a list too tall to
+ * compare; the explanation belongs on the one being considered.
  */
 @Composable
 private fun Card(
     selected: Boolean,
     accent: Color,
     onClick: () -> Unit,
-    content: @Composable () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     Row(
         Modifier
@@ -423,17 +572,21 @@ private fun Card(
     ) {
         Box(
             Modifier
-                .width(4.dp)
+                .width(CARD_BAR)
                 .heightIn(min = 60.dp)
                 .background(accent),
         )
         Column(
             Modifier
                 .weight(1f)
-                .padding(start = 12.dp, end = 14.dp, top = 12.dp, bottom = 12.dp),
-        ) {
-            content()
-        }
+                .padding(
+                    start = CARD_CONTENT_START - CARD_BAR,
+                    end = CARD_CONTENT_END,
+                    top = 12.dp,
+                    bottom = 12.dp,
+                ),
+            content = content,
+        )
     }
 }
 
@@ -442,14 +595,33 @@ private fun Preferences(state: RouteUiState, model: RouteViewModel) {
     Column {
         Text("How much longer will you accept", color = Palette.textDim, style = Type.bodyStrong)
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (option in listOf(5, 10, 20, 40)) {
-                Chip(
-                    label = "+$option min",
-                    selected = state.preferences.maxExtraMinutes == option,
-                    onClick = { model.setMaxExtraMinutes(option) },
+        // A connected run rather than four separate chips. These are four points
+        // on one scale, and four detached pills say they are four unrelated
+        // choices, which is the wrong thing to say about an ordered range.
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(Palette.surfaceHigh),
+        ) {
+            for (option in EXTRA_MINUTE_OPTIONS) {
+                val on = state.preferences.maxExtraMinutes == option
+                Text(
+                    text = "+$option",
+                    color = if (on) Palette.background else Palette.text,
+                    style = Type.bodyStrong,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .background(if (on) Palette.accent else Color.Transparent)
+                        .clickable { model.setMaxExtraMinutes(option) }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
+            Text(
+                text = "min",
+                color = Palette.textDim,
+                style = Type.unit,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 11.dp),
+            )
         }
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -467,6 +639,20 @@ private fun Preferences(state: RouteUiState, model: RouteViewModel) {
             )
         }
     }
+}
+
+/**
+ * How much traffic a tier allows, said as a phrase.
+ *
+ * The tier labels are levels rather than adjectives, so pasting "traffic" onto
+ * the end of one gives "None traffic". The reading is the point of the card, so
+ * it is worth writing out rather than assembling.
+ */
+private fun tierWords(tier: TrafficTier): String = when (tier) {
+    TrafficTier.NONE -> "Almost no traffic"
+    TrafficTier.LOW -> "Light traffic"
+    TrafficTier.MEDIUM -> "Moderate traffic"
+    TrafficTier.HIGH -> "Heavy traffic"
 }
 
 private fun weakness(route: ScoredRoute): String = when (route.score.weakest) {
@@ -489,3 +675,27 @@ private fun delta(extraSeconds: Double): String {
         else -> "${abs(m)} min quicker"
     }
 }
+
+/**
+ * Wide enough for three digits and a per cent sign at [Type.callout], so no
+ * value in the column can push the next one out of line.
+ */
+private val CELL_WIDTH = 74.dp
+
+/** The colour bar down a card's leading edge. */
+private val CARD_BAR = 4.dp
+
+/**
+ * Where a card's content starts and ends, measured from the card's own edges.
+ * The distance axis is drawn to the same inset so it lines up with the strips.
+ */
+private val CARD_CONTENT_START = 16.dp
+private val CARD_CONTENT_END = 14.dp
+
+private val EXTRA_MINUTE_OPTIONS = listOf(5, 10, 20, 40)
+
+/** Coarse on purpose: the label is in whole minutes, so nothing finer shows. */
+private const val FRESHNESS_TICK_MS = 15_000L
+
+/** When a reading stops being worth trusting without a recheck. */
+private const val STALE_MINUTES = 10

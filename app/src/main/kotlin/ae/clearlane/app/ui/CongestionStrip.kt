@@ -38,15 +38,28 @@ fun CongestionStrip(
      * into a picture of what is left of it.
      */
     progress: Float? = null,
+    /**
+     * The longest route in the set being compared, so that several strips can
+     * be read against each other.
+     *
+     * Without it every route is drawn to its own full width, which means the
+     * same pixel is a different distance on each card. Two strips stacked look
+     * directly comparable and are not: a 25 km route and a 38 km one both fill
+     * the card, so the shorter one appears to contain more jam per kilometre
+     * than it does. Given the set's longest distance, each route takes the
+     * share of the width it has actually earned and a shorter route plainly
+     * ends sooner.
+     */
+    scaleMeters: Double? = null,
 ) {
     Box(modifier.fillMaxWidth().height(height)) {
         Canvas(Modifier.fillMaxWidth().height(height)) {
-            drawStrip(route, progress)
+            drawStrip(route, progress, scaleMeters)
         }
     }
 }
 
-private fun DrawScope.drawStrip(route: RouteCandidate, progress: Float?) {
+private fun DrawScope.drawStrip(route: RouteCandidate, progress: Float?, scaleMeters: Double?) {
     val total = route.segments.sumOf { it.meters }
     if (total <= 0.0) return
 
@@ -54,17 +67,27 @@ private fun DrawScope.drawStrip(route: RouteCandidate, progress: Float?) {
     val h = size.height
     val baseline = h * 0.30f
 
+    // Floored well above zero: a route a fifth the length of the longest still
+    // has to be wide enough to read its colours off.
+    val share = scaleMeters
+        ?.takeIf { it > 0.0 }
+        ?.let { (total / it).coerceIn(0.12, 1.0) }
+        ?: 1.0
+    val span = (w * share).toFloat()
+
     // A faint floor, so a completely clear route still reads as a route rather
-    // than as an empty box.
+    // than as an empty box. Only under the route's own extent: running it the
+    // full width would put a road where this route does not go and undo the
+    // whole point of the shared scale.
     drawRect(
         color = Palette.line,
         topLeft = Offset(0f, h - baseline * 0.5f),
-        size = Size(w, baseline * 0.5f),
+        size = Size(span, baseline * 0.5f),
     )
 
     var x = 0f
     for (segment in route.segments) {
-        val width = (segment.meters / total * w).toFloat()
+        val width = (segment.meters / total * span).toFloat()
         if (width <= 0f) continue
         val bar = baseline + (h - baseline) * segment.congestion.toFloat()
         drawRect(
@@ -79,19 +102,20 @@ private fun DrawScope.drawStrip(route: RouteCandidate, progress: Float?) {
 
     val at = progress?.coerceIn(0f, 1f) ?: return
 
-    // Behind the car: still readable, but plainly the past.
+    // Progress is a fraction of this route, so it is measured against the span
+    // this route occupies rather than against the whole width.
     drawRect(
         color = Palette.background.copy(alpha = 0.62f),
         topLeft = Offset(0f, 0f),
-        size = Size(w * at, h),
+        size = Size(span * at, h),
     )
 
     // The car itself. Full height so it is found instantly, and drawn last so
     // nothing covers it.
-    val marker = w * at
+    val marker = span * at
     drawRect(
         color = Palette.text,
-        topLeft = Offset((marker - 1.2f).coerceIn(0f, w - 2.4f), 0f),
+        topLeft = Offset((marker - 1.2f).coerceIn(0f, span - 2.4f), 0f),
         size = Size(2.4f, h),
     )
 }
