@@ -27,8 +27,20 @@ For any trip, two things side by side:
 
 Each one carries what it costs: extra minutes, extra distance, tolls. Plus a
 drive score out of a hundred, which is about how good the drive is rather than
-how quick, and a strip chart of the whole route so you can see where the jam
-actually is.
+how quick, and a strip of the whole route so you can see where the jam actually
+is.
+
+The figures sit in fixed columns so the same number is always in the same place
+down the list, and the strips are drawn against **one distance scale shared by
+every route**, with the axis above them. A forty kilometre detour is drawn
+longer than the twenty-five kilometre direct line, which is the point: an
+earlier version scaled each strip to its own route, so every option filled the
+same width and the one thing a comparison exists to show, that the calm way is
+further, was the one thing the drawing hid.
+
+The age of the traffic the comparison was built from is shown next to it, and
+is marked once it is more than ten minutes old. A routing answer with no
+timestamp invites you to trust a plan made before the jam formed.
 
 The high tier is only ever offered when it genuinely beats the quickest route on
 congestion. If the road is bad everywhere, the app says so instead of padding
@@ -107,8 +119,8 @@ A routing API asked for "alternatives" will not offer you the far one, because
 it is twenty minutes longer and the API's job is to be quick. So Clearlane asks
 for it directly: same origin, same destination, forced through a point on each
 corridor in turn. Those corridors are named in
-[`UaeCorridors`](data/src/main/kotlin/ae/clearlane/data/uae/UaeCorridors.kt) —
-E11, E44, E311, E611, E66, E10 — which is what makes the app precise here.
+[`UaeCorridors`](data/src/main/kotlin/ae/clearlane/data/uae/UaeCorridors.kt):
+E11, E44, E311, E611, E66, E10. That list is what makes the app precise here.
 
 Outside the service area it falls back to offsetting either side of the direct
 line. That works anywhere and finds less.
